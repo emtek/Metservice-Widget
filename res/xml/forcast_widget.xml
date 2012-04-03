@@ -18,4 +18,4 @@
     android:minWidth="146dip"
     android:minHeight="72dip"
     android:updatePeriodMillis="3600000"
-    android:initialLayout="@layout/loading_message" />
+    android:initialLayout="@layout/loading_message" android:minResizeWidth="146dip" android:resizeMode="horizontal|vertical" android:minResizeHeight="72dip"/>

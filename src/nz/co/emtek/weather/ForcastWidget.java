@@ -27,7 +27,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Point;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.IBinder;
 import android.text.format.Time;
@@ -37,6 +39,7 @@ import android.widget.ImageView;
 import android.widget.RemoteViews;
 import android.widget.TextView;
 
+import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.regex.Matcher;
@@ -47,6 +50,8 @@ import nz.co.emtek.weather.MetserviceHelper;
 
 public class ForcastWidget extends AppWidgetProvider {
 
+	private static String NEXT_IMAGE_ACTION = "NextForecast";
+	private static String FIRST_IMAGE_ACTION = "FirstForecast";
 	
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager,
@@ -54,13 +59,86 @@ public class ForcastWidget extends AppWidgetProvider {
         // To prevent any ANR timeouts, we perform the update in a service
         context.startService(new Intent(context, UpdateService.class));
     }
+   
+    
+    @Override
+    public void onReceive(Context context, Intent intent) {
+     super.onReceive(context, intent);
+     if(intent != null){
+     	if (intent.getAction().equals(NEXT_IMAGE_ACTION)) {
+    	   String[] item = MetserviceHelper.getNextItem();
+    	   File cache = new File(context.getCacheDir()
+					+ item[1].substring(item[1].lastIndexOf("/"), item[1].length()));
+    	   if (!cache.exists()){
+    		  cache = MetserviceHelper.downloadImage(context.getCacheDir().toString(),item[1]);
+    	   }
+    	   Bitmap im = BitmapFactory.decodeFile(cache.getAbsolutePath());
+
+    	   Bitmap region = MetserviceHelper.cropBitmap(im, new Point(150,50), new Point(440,265));
+    	   RemoteViews remoteViews = new RemoteViews(context.getPackageName(),
+      				R.layout.forcast_widget);
+    	   remoteViews.setImageViewBitmap(R.id.icon, region);
+    	   remoteViews.setTextViewText(R.id.date_text, item[0]);
+    	   ComponentName thisWidget = new ComponentName(context,ForcastWidget.class);
+           AppWidgetManager manager = AppWidgetManager.getInstance(context);
+           manager.updateAppWidget(thisWidget, remoteViews);
+           
+    	}
+     	
+     	if (intent.getAction().equals(FIRST_IMAGE_ACTION)) {
+     	   String[] item = MetserviceHelper.getFirstItem();
+     	   File cache = new File(context.getCacheDir()
+ 					+ item[1].substring(item[1].lastIndexOf("/"), item[1].length()));
+     	   if (!cache.exists()){
+     		  cache = MetserviceHelper.downloadImage(context.getCacheDir().toString(),item[1]);
+     	   }
+     	   Bitmap im = BitmapFactory.decodeFile(cache.getAbsolutePath());
+
+     	   Bitmap region = MetserviceHelper.cropBitmap(im, new Point(150,50), new Point(440,265));
+     	   RemoteViews remoteViews = new RemoteViews(context.getPackageName(),
+       				R.layout.forcast_widget);
+     	   remoteViews.setImageViewBitmap(R.id.icon, region);
+     	   remoteViews.setTextViewText(R.id.date_text, item[0]);
+     	   ComponentName thisWidget = new ComponentName(context,ForcastWidget.class);
+            AppWidgetManager manager = AppWidgetManager.getInstance(context);
+            manager.updateAppWidget(thisWidget, remoteViews);
+            
+     	}
+     }
+    }
 
     public static class UpdateService extends Service {
-        @Override
+        private MetserviceHelper helper;
+        
+    	
+    	@Override
         public void onStart(Intent intent, int startId) {
+//    		if(intent.getAction().equals(NEXT_IMAGE_ACTION)){
+//    			
+//    		}else{
+        	MetserviceHelper.updateForecast();
+        	
             // Build the widget update for today
             RemoteViews updateViews = buildUpdate(this);
-
+            
+    	     // Register an onClickListener
+    			Intent newIntent = new Intent(this.getApplicationContext(), ForcastWidget.class);
+    	
+    			newIntent.setAction(NEXT_IMAGE_ACTION);
+    	
+    			PendingIntent pendingIntent = PendingIntent.getBroadcast(this.getApplicationContext(),
+    					0, newIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+    			updateViews.setOnClickPendingIntent(R.id.icon, pendingIntent);
+            
+    			Intent newIntent2 = new Intent(this.getApplicationContext(), ForcastWidget.class);
+    	    	
+    			newIntent.setAction(FIRST_IMAGE_ACTION);
+    	
+    			PendingIntent pendingIntent2 = PendingIntent.getBroadcast(this.getApplicationContext(),
+    					0, newIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+    			updateViews.setOnClickPendingIntent(R.id.refresh_icon, pendingIntent2);
+    			
+            
             // Push update for this widget to the home screen
             ComponentName thisWidget = new ComponentName(this, ForcastWidget.class);
             AppWidgetManager manager = AppWidgetManager.getInstance(this);
@@ -69,48 +147,27 @@ public class ForcastWidget extends AppWidgetProvider {
 
         public RemoteViews buildUpdate(Context context) {
 
-            // Build the page title for today, such as "March 21"
-            String pageName = "3day";
-            String[] pageContent = null;
+            String[] item = null;
 
-            try {
-                // Try querying the Wiktionary API for today's word
-                MetserviceHelper.prepareUserAgent(context);
-                pageContent = MetserviceHelper.getPageContent(pageName);
-            }catch(MetserviceHelper.ParseException e){
-            	Log.e("WordWidget", "Couldn't do json", e);
-            }
+            MetserviceHelper.prepareUserAgent(context);
+			item = MetserviceHelper.getFirstItem();
 
             RemoteViews views = null;
 
-            if (pageContent != null) {
+            if (item != null) {
                 // Build an update that holds the updated widget contents
             	views = new RemoteViews(context.getPackageName(), R.layout.forcast_widget);
-                URL url;
-				try {
-					url = new URL(pageContent[1]);
-					//Uri uri = Uri.parse(pageContent[1]);
-					//views.setImageViewUri(R.id.icon, uri);
-					Bitmap bm = MetserviceHelper.downloadImage(url);
-					Bitmap region = MetserviceHelper.cropBitmap(bm, new Point(200,110), new Point(400,174));
-					//views.setBitmap(R.id.icon, "", bm);
-					
-					views.setImageViewBitmap(R.id.icon, region);
-	                //views.setTextViewText(R.id.word_type, pageContent[0]);
-	                
-				} catch (MalformedURLException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}		
-                
-
-                // When user clicks on widget, launch to Wiktionary definition page
-//                String definePage = String.format("%s://%s/%s", ExtendedWikiHelper.WIKI_AUTHORITY,
-//                        ExtendedWikiHelper.WIKI_LOOKUP_HOST, wordTitle);
-//                Intent defineIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(definePage));
-//                PendingIntent pendingIntent = PendingIntent.getActivity(context,
-//                        0 /* no requestCode */, defineIntent, 0 /* no flags */);
-//                views.setOnClickPendingIntent(R.id.widget, pendingIntent);
+            	
+				File cache = new File(context.getCacheDir()
+						+ item[1].substring(item[1].lastIndexOf("/"), item[1].length()));
+		  	   if (!cache.exists()){
+						  cache = MetserviceHelper.downloadImage(context.getCacheDir().toString(),item[1]);
+		  	   }
+		  	   Bitmap im = BitmapFactory.decodeFile(cache.getAbsolutePath());
+		  	   Bitmap region = MetserviceHelper.cropBitmap(im, new Point(150,50), new Point(440,265));
+				
+				views.setImageViewBitmap(R.id.icon, region);
+				views.setTextViewText(R.id.date_text, item[0]);		
 
             } else {
                 // Didn't find word of day, so show error message

@@ -2,6 +2,8 @@ package nz.co.emtek.weather;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -41,36 +43,45 @@ public class MetserviceHelper {
 	private static final String TAG = "AndroidMetserviceHelper";
 	private static byte[] sBuffer = new byte[512];
 	private static final int HTTP_STATUS_OK = 200;
-	
-	/**
-     * Read and return the content for a specific Wiktionary page. This makes a
-     * lightweight API call, and trims out just the page content returned.
-     * Because this call blocks until results are available, it should not be
-     * run from a UI thread.
-     *
-     * @param title The exact title of the Wiktionary page requested.
-     * @param expandTemplates If true, expand any wiki templates found.
-     * @return Exact content of page.
-     * @throws ApiException If any connection or server error occurs.
-     * @throws ParseException If there are problems parsing the response.
-     */
-    public static String[] getPageContent(String title)
-            throws ParseException {
+	private static RainForcastObject[] currentForecast;
+	private static int position = 1;
+
+    public static void updateForecast()//Todo: make it work for 7 day too
+             {
 
         // Query the API for content
-       
+       position = 1;
         try {
         	 String content = getUrlContent(threeDayUrl);
             // Drill into the JSON response to find the content body
         	Gson gson = new Gson();
-        	RainForcastObject[] rfo = gson.fromJson(content, RainForcastObject[].class);
-        	String[] response = new String[]{rfo[0].shortDateTime, baseUrl + rfo[0].url.replace("\\", "")};
-        	return response;
+        	currentForecast = gson.fromJson(content, RainForcastObject[].class);
        
         } catch (Exception e) {
 			// TODO Auto-generated catch block
-        	throw new ParseException("Problem parsing API response", e);
+        	//throw new ParseException("Problem parsing API response", e);
 		}
+    }
+    
+    public static String[] getFirstItem(){
+    	if(currentForecast==null) updateForecast();
+    	position = 1;
+    	String url = baseUrl + currentForecast[currentForecast.length-position].url.replace("\\", ""); //removes escapes from json
+    	String[] response = new String[]{currentForecast[currentForecast.length-position].shortDateTime, url};
+    	
+    	return response;
+    }
+    
+    public static String[] getNextItem(){
+    	if(currentForecast==null) updateForecast();
+    	position += 1;
+    	if(position>currentForecast.length){
+    		position = 1;
+    	}
+    	String url = baseUrl + currentForecast[currentForecast.length-position].url.replace("\\", ""); //removes escapes from json
+    	String[] response = new String[]{currentForecast[currentForecast.length-position].shortDateTime, url};
+    	
+    	return response;
     }
 	
 	 public static class ParseException extends Exception {
@@ -139,9 +150,13 @@ public class MetserviceHelper {
 	            Log.e(TAG, "Couldn't find package information in PackageManager", e);
 	        }
 	    }
-	 public static Bitmap downloadImage(URL url){
-			if(url == null) return null;
+	 public static File downloadImage(String directory, String urlString){
+			if(urlString == null) return null;
 			try {
+				URL url = new URL(urlString);
+				File cache = new File(directory
+						+ urlString.substring(urlString.lastIndexOf("/"), urlString.length()));
+				
 				URLConnection conn;
 
 				conn = url.openConnection();
@@ -155,12 +170,18 @@ public class MetserviceHelper {
 				/* Buffered is always good for a performance plus. */
 				BufferedInputStream bis = new BufferedInputStream(is);
 				/* Decode url-data to a bitmap. */
-				Bitmap bm = BitmapFactory.decodeStream(bis);
+				FileOutputStream outStream = new FileOutputStream(
+						cache, false);
+				byte[] data = new byte[10240];
+				int len = 0;
+				while ((len = bis.read(data)) > 0) {
+					outStream.write(data, 0, len);
+				}
 				
 				bis.close();
 				is.close();
-				
-			return bm;
+				outStream.flush();
+			return cache;
 			}catch(IOException ex){
 				ex.printStackTrace();
 			}
@@ -182,10 +203,6 @@ public class MetserviceHelper {
 
 		 return photo;
 	 }
-}
-
-class RainForcastResponse{
-	public RainForcastObject[] items;
 }
 
 class RainForcastObject{
