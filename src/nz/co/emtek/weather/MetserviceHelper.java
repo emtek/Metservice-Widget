@@ -3,7 +3,10 @@ package nz.co.emtek.weather;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -45,42 +48,55 @@ public class MetserviceHelper {
 	private static final int HTTP_STATUS_OK = 200;
 	private static RainForcastObject[] currentForecast;
 	private static int position = 1;
+	static int frames =0;
 
-    public static void updateForecast()//Todo: make it work for 7 day too
+    public static void updateForecast(Context context)//Todo: make it work for 7 day too
              {
 
         // Query the API for content
        position = 1;
         try {
-        	 String content = getUrlContent(threeDayUrl);
-            // Drill into the JSON response to find the content body
-        	Gson gson = new Gson();
-        	currentForecast = gson.fromJson(content, RainForcastObject[].class);
-       
+        	 currentForecast = getCurrentForecastJSON(context,threeDayUrl);
+        	frames = currentForecast.length;
         } catch (Exception e) {
 			// TODO Auto-generated catch block
         	//throw new ParseException("Problem parsing API response", e);
 		}
     }
     
-    public static String[] getFirstItem(){
-    	if(currentForecast==null) updateForecast();
-    	position = 1;
-    	String url = baseUrl + currentForecast[currentForecast.length-position].url.replace("\\", ""); //removes escapes from json
-    	String[] response = new String[]{currentForecast[currentForecast.length-position].shortDateTime, url};
-    	
-    	return response;
+    public static void clearCache(Context context){
+    	File cacheDir = context.getCacheDir();
+
+    	File[] files = cacheDir.listFiles();
+
+    	if (files != null) {
+    	    for (File file : files)
+    	       file.delete();
+    	}
+    }
+    
+    public static int getPosition(){
+    	if(position>currentForecast.length){
+    		position = 1;
+    	}
+    	return position;
+    }
+    
+    public static void setPosition(int i){
+    	if(position>currentForecast.length){
+    		position = 1;
+    	}
+    	position = i;
     }
     
     public static String[] getNextItem(){
-    	if(currentForecast==null) updateForecast();
-    	position += 1;
+    	
     	if(position>currentForecast.length){
     		position = 1;
     	}
     	String url = baseUrl + currentForecast[currentForecast.length-position].url.replace("\\", ""); //removes escapes from json
     	String[] response = new String[]{currentForecast[currentForecast.length-position].shortDateTime, url};
-    	
+    	position += 1;
     	return response;
     }
 	
@@ -99,9 +115,9 @@ public class MetserviceHelper {
 	     * @return The raw content returned by the server.
 	     * @throws ApiException If any connection or server error occurs.
 	     */
-	    protected static synchronized String getUrlContent(String url) throws Exception {
+	    protected static synchronized RainForcastObject[] getCurrentForecastJSON(Context context,String url) throws Exception {
 	        if (sUserAgent == null) {
-	            throw new Exception("User-Agent string must be prepared");
+	            prepareUserAgent(context);
 	        }
 
 	        // Create client and set our specific user-agent string
@@ -115,24 +131,15 @@ public class MetserviceHelper {
 	            // Check if server response is valid
 	            StatusLine status = response.getStatusLine();
 	            if (status.getStatusCode() != HTTP_STATUS_OK) {
-	                throw new Exception("Invalid response from server: " +
-	                        status.toString());
+	               if(status.getStatusCode() == 302){
+	            	   return currentForecast;
+	               }
 	            }
+	            File file = MetserviceHelper.downloadFile(context.getCacheDir().toString(), url);
+	            FileReader freader = new FileReader(file);
 
-	            // Pull content stream from response
-	            HttpEntity entity = response.getEntity();
-	            InputStream inputStream = entity.getContent();
-
-	            ByteArrayOutputStream content = new ByteArrayOutputStream();
-
-	            // Read response into a buffered stream
-	            int readBytes = 0;
-	            while ((readBytes = inputStream.read(sBuffer)) != -1) {
-	                content.write(sBuffer, 0, readBytes);
-	            }
-
-	            // Return result from buffered stream
-	            return new String(content.toByteArray());
+	            Gson gson = new Gson();
+	            return gson.fromJson(freader, RainForcastObject[].class);  
 	        } catch (IOException e) {
 	            throw new Exception("Problem communicating with API", e);
 	        }
@@ -150,12 +157,15 @@ public class MetserviceHelper {
 	            Log.e(TAG, "Couldn't find package information in PackageManager", e);
 	        }
 	    }
-	 public static File downloadImage(String directory, String urlString){
+
+	public static File downloadFile(String directory, String urlString){
 			if(urlString == null) return null;
+			File cache = new File(directory
+					+ urlString.substring(urlString.lastIndexOf("/"), urlString.length()));
+	  	   if (!cache.exists()){
+					 
 			try {
 				URL url = new URL(urlString);
-				File cache = new File(directory
-						+ urlString.substring(urlString.lastIndexOf("/"), urlString.length()));
 				
 				URLConnection conn;
 
@@ -185,6 +195,9 @@ public class MetserviceHelper {
 			}catch(IOException ex){
 				ex.printStackTrace();
 			}
+	  	   }else{
+	  		   return cache;
+	  	   }
 			return null;
 		}
 	 

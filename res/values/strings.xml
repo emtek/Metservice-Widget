@@ -23,8 +23,8 @@
 
     <string name="widget_name">Rain Forcast</string>
 
-    <string name="widget_loading">Loading word\nof day\u2026</string>
-    <string name="widget_error">No word of\nday found</string>
+    <string name="widget_loading">Loading map</string>
+    <string name="widget_error">Error loading\nmap</string>
 
     <string-array name="month_names">
         <item>January</item>

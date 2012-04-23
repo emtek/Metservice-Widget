@@ -50,5 +50,13 @@
             android:layout_alignRight="@+id/icon"
             android:layout_alignTop="@+id/icon"
             android:src="@drawable/refresh_large" />
+
+        <ImageView
+            android:id="@+id/play_icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignLeft="@+id/icon"
+            android:layout_alignTop="@+id/icon"
+            android:src="@drawable/play" />
 
 </RelativeLayout>

@@ -18,19 +18,25 @@ package nz.co.emtek.weather;
 
 import nz.co.emtek.weather.R;
 
+import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.app.PendingIntent.CanceledException;
 import android.app.Service;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SyncResult;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.text.format.Time;
 import android.util.Log;
@@ -42,6 +48,13 @@ import android.widget.TextView;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Currency;
+import java.util.Dictionary;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,6 +65,7 @@ public class ForcastWidget extends AppWidgetProvider {
 
 	private static String NEXT_IMAGE_ACTION = "NextForecast";
 	private static String FIRST_IMAGE_ACTION = "FirstForecast";
+	private static String PLAY_SEQ = "PlaySeq";
 	
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager,
@@ -64,105 +78,88 @@ public class ForcastWidget extends AppWidgetProvider {
     @Override
     public void onReceive(Context context, Intent intent) {
      super.onReceive(context, intent);
-     if(intent != null){
-     	if (intent.getAction().equals(NEXT_IMAGE_ACTION)) {
-    	   String[] item = MetserviceHelper.getNextItem();
-    	   File cache = new File(context.getCacheDir()
-					+ item[1].substring(item[1].lastIndexOf("/"), item[1].length()));
-    	   if (!cache.exists()){
-    		  cache = MetserviceHelper.downloadImage(context.getCacheDir().toString(),item[1]);
-    	   }
-    	   Bitmap im = BitmapFactory.decodeFile(cache.getAbsolutePath());
-
-    	   Bitmap region = MetserviceHelper.cropBitmap(im, new Point(150,50), new Point(440,265));
-    	   RemoteViews remoteViews = new RemoteViews(context.getPackageName(),
-      				R.layout.forcast_widget);
-    	   remoteViews.setImageViewBitmap(R.id.icon, region);
-    	   remoteViews.setTextViewText(R.id.date_text, item[0]);
-    	   ComponentName thisWidget = new ComponentName(context,ForcastWidget.class);
-           AppWidgetManager manager = AppWidgetManager.getInstance(context);
-           manager.updateAppWidget(thisWidget, remoteViews);
-           
-    	}
-     	
-     	if (intent.getAction().equals(FIRST_IMAGE_ACTION)) {
-     	   String[] item = MetserviceHelper.getFirstItem();
-     	   File cache = new File(context.getCacheDir()
- 					+ item[1].substring(item[1].lastIndexOf("/"), item[1].length()));
-     	   if (!cache.exists()){
-     		  cache = MetserviceHelper.downloadImage(context.getCacheDir().toString(),item[1]);
-     	   }
-     	   Bitmap im = BitmapFactory.decodeFile(cache.getAbsolutePath());
-
-     	   Bitmap region = MetserviceHelper.cropBitmap(im, new Point(150,50), new Point(440,265));
-     	   RemoteViews remoteViews = new RemoteViews(context.getPackageName(),
-       				R.layout.forcast_widget);
-     	   remoteViews.setImageViewBitmap(R.id.icon, region);
-     	   remoteViews.setTextViewText(R.id.date_text, item[0]);
-     	   ComponentName thisWidget = new ComponentName(context,ForcastWidget.class);
-            AppWidgetManager manager = AppWidgetManager.getInstance(context);
-            manager.updateAppWidget(thisWidget, remoteViews);
-            
-     	}
-     }
+     String intentAction = intent.getAction();
+	     if(isAction(intentAction)){ 
+	    			context.startService(new Intent(intentAction).setClass(context, UpdateService.class));
+	    	 
+	     }
+    }
+    
+    public boolean isAction(String intentAction){
+    	return (((intentAction== FIRST_IMAGE_ACTION)||(intentAction == NEXT_IMAGE_ACTION))||(intentAction == PLAY_SEQ));
     }
 
     public static class UpdateService extends Service {
-        private MetserviceHelper helper;
-        
     	
     	@Override
         public void onStart(Intent intent, int startId) {
-//    		if(intent.getAction().equals(NEXT_IMAGE_ACTION)){
-//    			
-//    		}else{
-        	MetserviceHelper.updateForecast();
-        	
-            // Build the widget update for today
-            RemoteViews updateViews = buildUpdate(this);
-            
-    	     // Register an onClickListener
-    			Intent newIntent = new Intent(this.getApplicationContext(), ForcastWidget.class);
-    	
-    			newIntent.setAction(NEXT_IMAGE_ACTION);
-    	
-    			PendingIntent pendingIntent = PendingIntent.getBroadcast(this.getApplicationContext(),
-    					0, newIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-    			updateViews.setOnClickPendingIntent(R.id.icon, pendingIntent);
-            
-    			Intent newIntent2 = new Intent(this.getApplicationContext(), ForcastWidget.class);
-    	    	
-    			newIntent.setAction(FIRST_IMAGE_ACTION);
-    	
-    			PendingIntent pendingIntent2 = PendingIntent.getBroadcast(this.getApplicationContext(),
-    					0, newIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-    			updateViews.setOnClickPendingIntent(R.id.refresh_icon, pendingIntent2);
-    			
-            
-            // Push update for this widget to the home screen
-            ComponentName thisWidget = new ComponentName(this, ForcastWidget.class);
-            AppWidgetManager manager = AppWidgetManager.getInstance(this);
-            manager.updateAppWidget(thisWidget, updateViews);
+    		
+    		//MetserviceHelper.prepareUserAgent(this.getApplicationContext());
+    		String intentAction = intent.getAction();
+    		if(!(((intentAction== FIRST_IMAGE_ACTION)||(intentAction == NEXT_IMAGE_ACTION))||(intentAction == PLAY_SEQ))){
+    			MetserviceHelper.clearCache(this.getApplicationContext());
+    			MetserviceHelper.updateForecast(this.getApplicationContext());
+            }
+    		
+    		if((intentAction== FIRST_IMAGE_ACTION)||(intentAction == PLAY_SEQ)){
+    			MetserviceHelper.updateForecast(this.getApplicationContext());
+    			MetserviceHelper.setPosition(1);
+    		}
+    		
+    		if(intentAction== PLAY_SEQ){
+	    		 
+				for(int i = 1; i <= MetserviceHelper.frames; i++){
+		            // Build the widget update for today
+					AlarmManager am = (AlarmManager)this.getApplicationContext().getSystemService(this.getApplicationContext().ALARM_SERVICE);
+					long timeToStart = System.currentTimeMillis() + i;
+					Intent newIntent = new Intent(NEXT_IMAGE_ACTION).setClass(this.getApplicationContext(), UpdateService.class);
+					PendingIntent pendingIntent = PendingIntent.getBroadcast(this.getApplicationContext(),
+	    					0, newIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+				
+					am.set(AlarmManager.RTC, timeToStart, pendingIntent);
+				}
+				//context.startService(new Intent(FIRST_IMAGE_ACTION).setClass(context, UpdateService.class));
+				
+    		}else{
+    		
+	    		RemoteViews updateViews = buildUpdate(this);
+	            
+	            //Dictionary <Action, elementID>
+	            HashMap<String, Integer> eventTriggers = new HashMap<String, Integer>() ;
+	            eventTriggers.put(NEXT_IMAGE_ACTION, R.id.icon);
+	            eventTriggers.put(FIRST_IMAGE_ACTION, R.id.refresh_icon);
+	            eventTriggers.put(PLAY_SEQ, R.id.play_icon);
+	            Iterator<String> keys = eventTriggers.keySet().iterator();
+	    	     // Register an onClickListeners
+	            while(keys.hasNext()){
+	            	String action = keys.next();
+	    			Intent newIntent = new Intent(this.getApplicationContext(), ForcastWidget.class);
+	    			newIntent.setAction(action);
+	    	
+	    			PendingIntent pendingIntent = PendingIntent.getBroadcast(this.getApplicationContext(),
+	    					0, newIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+	    			updateViews.setOnClickPendingIntent(eventTriggers.get(action), pendingIntent);
+	            }
+	            // Push update for this widget to the home screen
+	            ComponentName thisWidget = new ComponentName(this, ForcastWidget.class);
+	            AppWidgetManager manager = AppWidgetManager.getInstance(this);
+	            manager.updateAppWidget(thisWidget, updateViews);
+    		}
+	          
         }
 
         public RemoteViews buildUpdate(Context context) {
-
             String[] item = null;
-
-            MetserviceHelper.prepareUserAgent(context);
-			item = MetserviceHelper.getFirstItem();
-
+            item = MetserviceHelper.getNextItem();
             RemoteViews views = null;
 
             if (item != null) {
                 // Build an update that holds the updated widget contents
             	views = new RemoteViews(context.getPackageName(), R.layout.forcast_widget);
             	
-				File cache = new File(context.getCacheDir()
-						+ item[1].substring(item[1].lastIndexOf("/"), item[1].length()));
-		  	   if (!cache.exists()){
-						  cache = MetserviceHelper.downloadImage(context.getCacheDir().toString(),item[1]);
-		  	   }
+				File cache = MetserviceHelper.downloadFile(context.getCacheDir().toString(),
+						item[1]);
+		  	   
 		  	   Bitmap im = BitmapFactory.decodeFile(cache.getAbsolutePath());
 		  	   Bitmap region = MetserviceHelper.cropBitmap(im, new Point(150,50), new Point(440,265));
 				
@@ -176,6 +173,8 @@ public class ForcastWidget extends AppWidgetProvider {
             }
             return views;
         }
+        
+       // public RemoteViews build
 
         @Override
         public IBinder onBind(Intent intent) {
