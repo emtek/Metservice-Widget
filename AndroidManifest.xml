@@ -28,6 +28,7 @@
         <receiver android:name=".ForcastWidget" android:label="@string/widget_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="nz.co.emtek.RainForcast.PLAY_ALARM" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider"
                 android:resource="@xml/forcast_widget" />

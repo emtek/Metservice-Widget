@@ -66,6 +66,7 @@ public class ForcastWidget extends AppWidgetProvider {
 	private static String NEXT_IMAGE_ACTION = "NextForecast";
 	private static String FIRST_IMAGE_ACTION = "FirstForecast";
 	private static String PLAY_SEQ = "PlaySeq";
+	private static String PLAYING = "Playing";
 	
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager,
@@ -82,6 +83,12 @@ public class ForcastWidget extends AppWidgetProvider {
 	     if(isAction(intentAction)){ 
 	    			context.startService(new Intent(intentAction).setClass(context, UpdateService.class));
 	    	 
+	     }else{//DIIRRTY
+	    	 if(intentAction== "nz.co.emtek.RainForcast.PLAY_ALARM"){
+	    			
+					context.startService(new Intent(NEXT_IMAGE_ACTION).setClass(context, UpdateService.class));
+					
+	    		}
 	     }
     }
     
@@ -102,24 +109,47 @@ public class ForcastWidget extends AppWidgetProvider {
             }
     		
     		if((intentAction== FIRST_IMAGE_ACTION)||(intentAction == PLAY_SEQ)){
-    			MetserviceHelper.updateForecast(this.getApplicationContext());
+    			//MetserviceHelper.updateForecast(this.getApplicationContext());
     			MetserviceHelper.setPosition(1);
     		}
     		
-    		if(intentAction== PLAY_SEQ){
-	    		 
+    		if(intentAction == PLAY_SEQ){
+
+
 				for(int i = 1; i <= MetserviceHelper.frames; i++){
-		            // Build the widget update for today
-					AlarmManager am = (AlarmManager)this.getApplicationContext().getSystemService(this.getApplicationContext().ALARM_SERVICE);
-					long timeToStart = System.currentTimeMillis() + i;
-					Intent newIntent = new Intent(NEXT_IMAGE_ACTION).setClass(this.getApplicationContext(), UpdateService.class);
-					PendingIntent pendingIntent = PendingIntent.getBroadcast(this.getApplicationContext(),
-	    					0, newIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-				
-					am.set(AlarmManager.RTC, timeToStart, pendingIntent);
+					
+					long timeToStart = System.currentTimeMillis() + i*100;
+					MetserviceHelper.setPosition(i);
+					RemoteViews updateViews = buildUpdate(this);
+		            
+		            //Dictionary <Action, elementID>
+		            HashMap<String, Integer> eventTriggers = new HashMap<String, Integer>() ;
+		            eventTriggers.put(NEXT_IMAGE_ACTION, R.id.icon);
+		            eventTriggers.put(FIRST_IMAGE_ACTION, R.id.refresh_icon);
+		            eventTriggers.put(PLAY_SEQ, R.id.play_icon);
+		            Iterator<String> keys = eventTriggers.keySet().iterator();
+		    	     // Register an onClickListeners
+		            while(keys.hasNext()){
+		            	String action = keys.next();
+		    			Intent newIntent = new Intent(this.getApplicationContext(), ForcastWidget.class);
+		    			newIntent.setAction(action);
+		    	
+		    			PendingIntent pendingIntent = PendingIntent.getBroadcast(this.getApplicationContext(),
+		    					0, newIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+		    			updateViews.setOnClickPendingIntent(eventTriggers.get(action), pendingIntent);
+		            }
+		            // Push update for this widget to the home screen
+		            ComponentName thisWidget = new ComponentName(this, ForcastWidget.class);
+		            AppWidgetManager manager = AppWidgetManager.getInstance(this);
+		            manager.updateAppWidget(thisWidget, updateViews);
+					try {
+						Thread.sleep(100);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					//am.set(AlarmManager.RTC, timeToStart, pendingIntent);
 				}
-				//context.startService(new Intent(FIRST_IMAGE_ACTION).setClass(context, UpdateService.class));
-				
     		}else{
     		
 	    		RemoteViews updateViews = buildUpdate(this);
@@ -145,7 +175,6 @@ public class ForcastWidget extends AppWidgetProvider {
 	            AppWidgetManager manager = AppWidgetManager.getInstance(this);
 	            manager.updateAppWidget(thisWidget, updateViews);
     		}
-	          
         }
 
         public RemoteViews buildUpdate(Context context) {
