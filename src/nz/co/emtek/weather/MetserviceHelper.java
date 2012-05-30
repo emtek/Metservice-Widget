@@ -76,6 +76,7 @@ public class MetserviceHelper {
     }
     
     public static int getPosition(){
+    	if(currentForecast==null) return 1;
     	if(position>currentForecast.length){
     		position = 1;
     	}
@@ -83,6 +84,7 @@ public class MetserviceHelper {
     }
     
     public static void setPosition(int i){
+    	if(currentForecast==null) return;
     	if(position>currentForecast.length){
     		position = 1;
     	}
@@ -90,14 +92,17 @@ public class MetserviceHelper {
     }
     
     public static String[] getNextItem(){
-    	
-    	if(position>currentForecast.length){
-    		position = 1;
+    	if(currentForecast!=null){
+	    	if(position>currentForecast.length){
+	    		position = 1;
+	    	}
+	    	String url = baseUrl + currentForecast[currentForecast.length-position].url.replace("\\", ""); //removes escapes from json
+	    	String[] response = new String[]{currentForecast[currentForecast.length-position].shortDateTime, url};
+	    	position += 1;
+	    	return response;
+    	}else{
+    		return null;
     	}
-    	String url = baseUrl + currentForecast[currentForecast.length-position].url.replace("\\", ""); //removes escapes from json
-    	String[] response = new String[]{currentForecast[currentForecast.length-position].shortDateTime, url};
-    	position += 1;
-    	return response;
     }
 	
 	 public static class ParseException extends Exception {

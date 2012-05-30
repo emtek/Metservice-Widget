@@ -106,10 +106,11 @@ public class ForcastWidget extends AppWidgetProvider {
     		if(!(((intentAction== FIRST_IMAGE_ACTION)||(intentAction == NEXT_IMAGE_ACTION))||(intentAction == PLAY_SEQ))){
     			MetserviceHelper.clearCache(this.getApplicationContext());
     			MetserviceHelper.updateForecast(this.getApplicationContext());
+    			
             }
     		
     		if((intentAction== FIRST_IMAGE_ACTION)||(intentAction == PLAY_SEQ)){
-    			//MetserviceHelper.updateForecast(this.getApplicationContext());
+    			MetserviceHelper.updateForecast(this.getApplicationContext());
     			MetserviceHelper.setPosition(1);
     		}
     		
@@ -143,7 +144,7 @@ public class ForcastWidget extends AppWidgetProvider {
 		            AppWidgetManager manager = AppWidgetManager.getInstance(this);
 		            manager.updateAppWidget(thisWidget, updateViews);
 					try {
-						Thread.sleep(100);
+						Thread.sleep(300);
 					} catch (InterruptedException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -196,9 +197,15 @@ public class ForcastWidget extends AppWidgetProvider {
 				views.setTextViewText(R.id.date_text, item[0]);		
 
             } else {
-                // Didn't find word of day, so show error message
+                
                 views = new RemoteViews(context.getPackageName(), R.layout.loading_message);
                 views.setTextViewText(R.id.message, context.getString(R.string.widget_error));
+                Intent newIntent = new Intent(this.getApplicationContext(), ForcastWidget.class);
+    			newIntent.setAction(FIRST_IMAGE_ACTION);
+    	
+    			PendingIntent pendingIntent = PendingIntent.getBroadcast(this.getApplicationContext(),
+    					0, newIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+    			views.setOnClickPendingIntent(R.id.message, pendingIntent);
             }
             return views;
         }
